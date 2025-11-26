@@ -1,4 +1,4 @@
-# ngarch_q1.py
+# q1.py
 
 import numpy as np
 import pandas as pd
@@ -6,24 +6,18 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.optimize import minimize
 
-# ============================================================
-# 1. Helper functions
-# ============================================================
+
+# Helper + misc functions
 
 def annual_to_daily(y_annual_decimal, days_per_year=252):
-    """
-    Convert an annualized yield (decimal, e.g. 0.03 = 3%)
-    to a daily yield by simple scaling.
-    """
+
     return y_annual_decimal / days_per_year
 
 
 def build_dividend_yield_series(trading_days,
                                 damodaran_path='damodaran_divyields.csv',
                                 spx_opt_div_path='spx_divyields.csv'):
-    """
-    Build a daily dividend yield series y_t aligned with 'trading_days'.
-    """
+  
     dam = pd.read_csv(damodaran_path)
 
     if {'Year', 'Dividend_Yield'} <= set(dam.columns):
@@ -48,7 +42,7 @@ def build_dividend_yield_series(trading_days,
     dam = dam.reindex(trading_days, method='ffill')
     dam['y_daily'] = annual_to_daily(dam['div_y_annual_decimal'])
 
-    # ---------- Option-implied part (from 1996-01-04 onward) ----------
+    # Option-implied part with time stamps baked in
     opt = pd.read_csv(spx_opt_div_path,
                       parse_dates=['date', 'expiration'])
 
@@ -78,11 +72,7 @@ def build_dividend_yield_series(trading_days,
 
 
 def ngarch_loglik(params, r):
-    """
-    Negative log-likelihood for Duan's NGARCH(1,1):
-        r_t   = λ * sqrt(h_t) - 0.5 * h_t + sqrt(h_t) ε_t
-        h_t   = ω + α * h_{t-1} * (ε_{t-1} - γ)^2 + β * h_{t-1}
-    """
+
     lam, omega, alpha, beta, gamma = params
 
     if omega <= 0 or alpha < 0 or beta < 0:
@@ -129,7 +119,8 @@ def ngarch_loglik(params, r):
     return loglik
 
 
-# ---------- Multi-start helpers ----------
+# Multi-start algo + defs 
+# we decided to do multi-start optimization in order to avoid getting stuck in local minima. 
 
 def generate_ngarch_starting_points(r):
     r = np.asarray(r)
@@ -165,16 +156,7 @@ def generate_ngarch_starting_points(r):
 
 
 def estimate_ngarch_multistart(r, start_params_list=None):
-    """
-    Estimate NGARCH(1,1) via multi-start quasi-MLE, *without* plotting.
 
-    Returns
-    -------
-    params : dict
-    h      : np.ndarray
-    eps    : np.ndarray
-    opt_res: OptimizeResult
-    """
     r = np.asarray(r)
 
     if start_params_list is None:
@@ -215,7 +197,7 @@ def estimate_ngarch_multistart(r, start_params_list=None):
             best_x = res.x
 
     if best_res is None:
-        raise RuntimeError("NGARCH multi-start optimization failed for all starting points.")
+        raise RuntimeError("NGARCH multi-start optimization failed")
 
     lam, omega, alpha, beta, gamma = best_x
 
@@ -258,8 +240,7 @@ def anderson_darling_uniform(u):
 
 def acf_1d(x, max_lag):
     """
-    Simple ACF for a 1D array up to lag max_lag.
-    Returns array of length max_lag with acf[lag-1] = rho_lag.
+    Simple ACF.
     """
     x = np.asarray(x)
     x = x[~np.isnan(x)]
@@ -274,20 +255,12 @@ def acf_1d(x, max_lag):
     return ac
 
 
-# ============================================================
-# 2. High-level functions (callable from other files)
-# ============================================================
+# Main functions to estimate model and plot diagnostics
 
 def estimate_ngarch_q1(spx_path='spx.csv',
                        damodaran_path='damodaran_divyields.csv',
                        spx_div_path='spx_divyields.csv'):
-    """
-    Load data from disk, build cum-dividend excess returns, and estimate NGARCH.
 
-    Returns
-    -------
-    spx, y_daily, rf_daily, r, h, eps, params, opt_res
-    """
     spx = pd.read_csv(spx_path, parse_dates=['date'])
     spx.sort_values('date', inplace=True)
     spx.set_index('date', inplace=True)
@@ -316,13 +289,10 @@ def estimate_ngarch_q1(spx_path='spx.csv',
 
 def plot_ngarch_diagnostics(eps, make_qq=True, make_hist=True,
                             make_acf=True, make_pit=True):
-    """
-    Given standardized residuals eps, produce QQ-plot, histogram+pdf,
-    ACF of eps^2, and PIT histogram.
-    """
+
     eps = np.asarray(eps)
 
-    # ---------- QQ plot ----------
+    #  QQ plot 
     if make_qq:
         fig, ax = plt.subplots()
 
@@ -345,7 +315,7 @@ def plot_ngarch_diagnostics(eps, make_qq=True, make_hist=True,
         plt.tight_layout()
         plt.show()
 
-    # ---------- Histogram of eps with N(0,1) pdf ----------
+    #  Histogram of eps with N(0,1) pdf 
     if make_hist:
         fig1, ax1 = plt.subplots()
         ax1.hist(eps, bins=50, density=True, alpha=0.6, edgecolor="black")
@@ -357,7 +327,7 @@ def plot_ngarch_diagnostics(eps, make_qq=True, make_hist=True,
         plt.tight_layout()
         plt.show()
 
-    # ---------- ACF of eps^2 ----------
+    #  ACF of eps^2 
     if make_acf:
         eps2 = eps ** 2
         max_lag = 20
@@ -376,7 +346,7 @@ def plot_ngarch_diagnostics(eps, make_qq=True, make_hist=True,
         plt.tight_layout()
         plt.show()
 
-    # ---------- PIT histogram ----------
+    #  PIT histogram 
     if make_pit:
         u = stats.norm.cdf(eps)
         fig3, ax3 = plt.subplots()
@@ -393,9 +363,7 @@ def plot_ngarch_diagnostics(eps, make_qq=True, make_hist=True,
 def run_q1(spx_path='spx.csv',
            damodaran_path='damodaran_divyields.csv',
            spx_div_path='spx_divyields.csv'):
-    """
-    Convenience wrapper: estimate NGARCH and immediately plot diagnostics.
-    """
+
     spx, y_daily, rf_daily, r, h, eps, params, opt_res = \
         estimate_ngarch_q1(spx_path, damodaran_path, spx_div_path)
 
@@ -406,7 +374,7 @@ def run_q1(spx_path='spx.csv',
 
     plot_ngarch_diagnostics(eps)
 
-    # residual diagnostics printout
+    # residual diagnostics 
     print("\n========== Residual diagnostics for epsilon t ==========\n")
     jb_stat, jb_pvalue = stats.jarque_bera(eps)
     jb_skew = stats.skew(eps, bias=False)
@@ -435,6 +403,6 @@ def run_q1(spx_path='spx.csv',
     return spx, y_daily, rf_daily, r, h, eps, params, opt_res
 
 
-# Only run automatically if the file is executed as a script
+# Only run if the file is executed as a script
 if __name__ == '__main__':
     run_q1()

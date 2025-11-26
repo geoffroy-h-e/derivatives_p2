@@ -6,21 +6,7 @@ from scipy import stats as st
 
 
 def compute_duan_ann_vol(h, r_index):
-    """
-    Convert daily NGARCH variance h_t into annualized volatility (×100).
 
-    Parameters
-    ----------
-    h : np.ndarray
-        Daily conditional variances from NGARCH.
-    r_index : pandas.DatetimeIndex
-        Index to use (same as for the return series r).
-
-    Returns
-    -------
-    duan_vol_ann : pandas.Series
-        Annualized volatility in percent (×100).
-    """
     h_series = pd.Series(h, index=r_index, name="h")
     duan_vol_ann = np.sqrt(252 * h_series) * 100.0
     duan_vol_ann.name = "Duan_AnnVol_x100"
@@ -28,11 +14,7 @@ def compute_duan_ann_vol(h, r_index):
 
 
 def load_vix(vix_path="VIX_History.csv"):
-    """
-    Load VIX history from Cboe csv.
-
-    Expects columns: DATE (mm/dd/yyyy format), CLOSE
-    """
+  
     vix = pd.read_csv(vix_path)
     vix["DATE"] = pd.to_datetime(vix["DATE"], format="%m/%d/%Y")
     vix.set_index("DATE", inplace=True)
@@ -45,9 +27,7 @@ def load_vix(vix_path="VIX_History.csv"):
 
 def align_vix_duan(duan_vol_ann, vix_close,
                    start="1990-01-01", end="2024-12-31"):
-    """
-    Restrict both series to [start, end] and align on common dates.
-    """
+  
     vix_sub = vix_close.loc[start:end]
     duan_sub = duan_vol_ann.loc[start:end]
 
@@ -56,11 +36,7 @@ def align_vix_duan(duan_vol_ann, vix_close,
 
 
 def ols_vix_on_duan(df):
-    """
-    OLS regression (without statsmodels):
 
-        VIX_t = a + b * Duan_AnnVol_x100_t + error_t
-    """
     y = df["VIX"].values
     x = df["Duan_AnnVol_x100"].values
     X = np.column_stack([np.ones_like(x), x])   # [const, NGARCH vol]
@@ -106,9 +82,7 @@ def ols_vix_on_duan(df):
 
 
 def mean_spread_test(df):
-    """
-    t-test on mean spread: H0: E[VIX − NGARCH_vol] = 0
-    """
+
     spread = df["VIX"] - df["Duan_AnnVol_x100"]
     n = spread.shape[0]
     spread_mean = spread.mean()
@@ -142,6 +116,7 @@ def plot_vix_vs_duan(df):
 
 
 def plot_rolling_corr_and_spread(df, window=252):
+
     # rolling correlation
     rolling_corr_252 = df["VIX"].rolling(window).corr(df["Duan_AnnVol_x100"])
 
@@ -175,53 +150,27 @@ def run_vix_duan_analysis(h, r,
                           start="1990-01-01",
                           end="2024-12-31",
                           make_plots=True):
-    """
-    Master function: call this from your notebook.
 
-    Parameters
-    ----------
-    h : np.ndarray
-        NGARCH conditional variances.
-    r : pandas.Series
-        Cum-dividend log-excess returns (DatetimeIndex).
-    vix_path : str
-        Path to VIX history csv.
-    start, end : str
-        Date range to use.
-    make_plots : bool
-        If True, produce all plots.
-
-    Returns
-    -------
-    results : dict
-        Contains df, rolling stats, regression and spread-test results.
-    """
-    # 1) Duan annualized vol
+    # Duan annualized vol
     duan_vol_ann = compute_duan_ann_vol(h, r.index)
-
-    # 2) Load VIX
     vix_close = load_vix(vix_path)
 
-    # 3) Align
     df = align_vix_duan(duan_vol_ann, vix_close, start=start, end=end)
-
-    # 4) Plot VIX vs Duan vol
     if make_plots:
         plot_vix_vs_duan(df)
 
-    # 5) Summary stats
+
     print("Summary statistics (Jan 1990 – Dec 2024):")
     print(df.describe())
 
     print("\nCorrelation matrix:")
     print(df.corr())
 
-    # 6) Rolling correlation & spread
     rolling_corr_252, rolling_spread_252 = (None, None)
     if make_plots:
         rolling_corr_252, rolling_spread_252 = plot_rolling_corr_and_spread(df)
 
-    # 7) OLS regression
+    # OLS regression
     ols_res = ols_vix_on_duan(df)
 
     print("\nOLS regression: VIX_t = a + b * NGARCH_vol_t + error_t")
@@ -243,7 +192,7 @@ def run_vix_duan_analysis(h, r,
     else:
         print("  -> Do NOT reject normality of regression errors at 5% level.")
 
-    # 8) Mean spread test
+    # Mean spread test
     spread_res = mean_spread_test(df)
 
     print("\nMean spread test: H0: E[VIX − NGARCH_vol] = 0")
@@ -270,8 +219,6 @@ def run_vix_duan_analysis(h, r,
     return results
 
 
-# If you ever want to run this file directly (not just import it),
-# you'll need to provide h and r yourself (e.g. by loading from disk).
 if __name__ == "__main__":
     raise SystemExit(
         "This module is meant to be imported.\n"
