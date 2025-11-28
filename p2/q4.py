@@ -6,11 +6,7 @@ from scipy.stats import gaussian_kde
 
 
 def compute_Q_weights(eps_array, eta):
-    """
-    Exponential-tilt weights q_i(η) ∝ exp(-η ε_i).
-
-    Under P the weights are 1/N; under Q they are q_i(η).
-    """
+ 
     eps_array = np.asarray(eps_array)
     w = np.exp(-eta * eps_array)
     q = w / w.sum()
@@ -18,10 +14,7 @@ def compute_Q_weights(eps_array, eta):
 
 
 def sample_Q_shocks(eps_array, lam, n_samples=50_000, seed=123):
-    """
-    Sample Q-shocks via filtered historical simulation
-    with exponential tilt parameter λ.
-    """
+ 
     eps_array = np.asarray(eps_array)
 
     rng = np.random.default_rng(seed)
@@ -39,28 +32,7 @@ def run_exponential_tilt_analysis(
     seed=123,
     make_plots=True,
 ):
-    """
-    Question 4 – Exponential tilt and filtered historical simulation.
 
-    Parameters
-    ----------
-    eps : array-like
-        Historical NGARCH shocks ε_t.
-    lam : float
-        Market price of risk λ.
-    n_samples : int
-        Number of Q-shocks to simulate.
-    seed : int
-        RNG seed.
-    make_plots : bool
-        If True, produce density / difference plots.
-
-    Returns
-    -------
-    results : dict
-        Contains eps_array, eps_Q, q_weights, grid, f_P, f_Q,
-        empirical likelihood ratio, theoretical likelihood ratio, etc.
-    """
     eps_array = np.asarray(eps)
     eps_Q, q_weights = sample_Q_shocks(eps_array, lam, n_samples=n_samples, seed=seed)
 
@@ -81,12 +53,11 @@ def run_exponential_tilt_analysis(
     eps_denom = 1e-10
     likelihood_ratio_emp = f_Q / np.maximum(f_P, eps_denom)
 
-    # Theoretical likelihood ratio dQ/dP
+    # likelihood ratio dQ/dP
     normalization_const = np.mean(np.exp(-lam * eps_array))
     theoretical_lr = np.exp(-lam * grid) / normalization_const
 
     if make_plots:
-        # --- Densities + theoretical likelihood ratio ---
         fig, ax1 = plt.subplots(figsize=(8, 5))
 
         ax1.plot(
@@ -123,7 +94,6 @@ def run_exponential_tilt_analysis(
         plt.tight_layout()
         plt.show()
 
-        # --- Difference in densities f_Q - f_P ---
         fig_diff, ax_diff = plt.subplots(figsize=(8, 5))
 
         f_diff = f_Q - f_P
